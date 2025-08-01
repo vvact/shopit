@@ -3,13 +3,13 @@ from django.conf import settings
 from products.models import Product, ProductVariant
 
 class Cart(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cart')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,null=True, related_name='cart')
     session_key = models.CharField(max_length=40, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         if self.user:
-            return f"{self.user.username}'s cart"
+            return f"{self.user.email}'s Cart"
         return f"Guest cart {self.session_key}"
 
     def total_items(self):

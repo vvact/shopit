@@ -48,6 +48,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 Site_ID = 1
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Stores session in DB
+SESSION_COOKIE_NAME = 'shopit_sessionid'  # Custom session cookie name
 ROOT_URLCONF = "manwell.urls"
 
 TEMPLATES = [

@@ -11,6 +11,8 @@ from .models import (
     ProductAttribute,
 )
 
+from django.contrib.sessions.models import Session
+
 # Product Image Inline
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -59,7 +61,7 @@ class ProductAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Basic Info", {
-            'fields': ('name', 'slug', 'category', 'description', 'has_variants')
+            'fields': ('name', 'slug', 'category', 'description')
         }),
         ("Pricing & Availability", {
             'fields': ('base_price', 'discount_price', 'in_stock')
@@ -80,3 +82,4 @@ admin.site.register(Color)
 admin.site.register(Size)
 admin.site.register(ProductVariant)
 admin.site.register(ProductAttribute)
+admin.site.register(Session)
