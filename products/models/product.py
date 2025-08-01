@@ -8,7 +8,7 @@ from products.models.category import Category
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True, blank=True)
 
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
 
@@ -16,6 +16,7 @@ class Product(models.Model):
 
     base_price = models.DecimalField(max_digits=10, decimal_places=2)  # Regular price
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # Sale price
+    in_stock = models.BooleanField(default=True)  # Your requested field
 
     is_featured = models.BooleanField(default=False)
     is_available = models.BooleanField(default=True)
@@ -25,9 +26,15 @@ class Product(models.Model):
 
     class Meta:
         verbose_name_plural = "Products"
+        ordering = ['-created_at']
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = self.generate_unique_slug()
+        super().save(*args, **kwargs)
 
     def generate_unique_slug(self):
         base_slug = slugify(self.name)
@@ -50,6 +57,15 @@ class Product(models.Model):
         return Decimal('0.00')
 
     def get_discount_percentage(self):
-        if self.has_discount():
+        if self.has_discount() and self.base_price > 0:
             return round((self.get_discount_amount() / self.base_price) * 100)
         return 0
+
+    def get_price_display_data(self):
+        return {
+            "sale_price": self.discount_price if self.has_discount() else None,
+            "regular_price": self.base_price,
+            "final_price": self.get_final_price(),
+            "savings": self.get_discount_amount(),
+            "percentage": self.get_discount_percentage(),
+        }

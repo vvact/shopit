@@ -6,9 +6,12 @@ class ProductImage(models.Model):
     image = models.ImageField(upload_to='products/')
     alt_text = models.CharField(max_length=255, blank=True)
 
-    is_main = models.BooleanField(default=False)  # Optional: to mark main image
-
+    is_main = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)  # Optional: controls display order
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position', '-created_at']  # show in order, newest last if same position
 
     def __str__(self):
         return f"Image for {self.product.name}"
