@@ -1,31 +1,22 @@
 from rest_framework import serializers
 from .models import (
-    Category,
-    Product,
-    ProductImage,
-    ProductVariant,
-    Attribute,
-    AttributeValue,
-    ProductAttribute,
-    Color,
-    Size,
+    Category, Product, ProductImage, ProductVariant,
+    Attribute, AttributeValue, ProductAttribute,
+    Color, Size
 )
 
-# ---- CATEGORY SERIALIZER ----
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug']
 
 
-# ---- IMAGE SERIALIZER ----
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
         fields = ['id', 'image', 'alt_text', 'is_main', 'position']
 
 
-# ---- COLOR / SIZE SERIALIZERS ----
 class ColorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Color
@@ -38,7 +29,6 @@ class SizeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-# ---- ATTRIBUTE / VALUE SERIALIZERS ----
 class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
@@ -53,7 +43,6 @@ class AttributeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'values']
 
 
-# ---- PRODUCT ATTRIBUTE SERIALIZER ----
 class ProductAttributeSerializer(serializers.ModelSerializer):
     attribute = serializers.StringRelatedField()
     value = serializers.StringRelatedField()
@@ -63,7 +52,6 @@ class ProductAttributeSerializer(serializers.ModelSerializer):
         fields = ['attribute', 'value']
 
 
-# ---- PRODUCT VARIANT SERIALIZER ----
 class ProductVariantSerializer(serializers.ModelSerializer):
     color = ColorSerializer(read_only=True)
     size = SizeSerializer(read_only=True)
@@ -76,7 +64,6 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         ]
 
 
-# ---- PRODUCT LIST SERIALIZER (lightweight) ----
 class ProductListSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(slug_field='name', read_only=True)
     main_image = serializers.SerializerMethodField()
@@ -97,15 +84,15 @@ class ProductListSerializer(serializers.ModelSerializer):
         return obj.get_final_price()
 
 
-# ---- PRODUCT DETAIL SERIALIZER ----
 class ProductDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
-    attributes = ProductAttributeSerializer(many=True, read_only=True)
+    attributes = serializers.SerializerMethodField()
     discount_amount = serializers.SerializerMethodField()
     discount_percentage = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
+    has_variants = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Product
@@ -115,7 +102,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'discount_amount', 'discount_percentage',
             'in_stock', 'is_available', 'is_featured',
             'created_at', 'updated_at',
-            'images', 'variants', 'attributes'
+            'images', 'has_variants', 'variants', 'attributes',
         ]
 
     def get_discount_amount(self, obj):
@@ -126,3 +113,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     def get_price(self, obj):
         return obj.get_final_price()
+
+    def get_attributes(self, obj):
+        return {
+            attr.attribute.name: attr.value.value
+            for attr in obj.attributes.all()
+        }

@@ -15,8 +15,17 @@ from .models import (
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
-    fields = ['image', 'position']
+    fields = ['image', 'position', 'is_main']
     ordering = ['position']
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for instance in instances:
+            if instance.is_main:
+                # Unset other main images for this product
+                ProductImage.objects.filter(product=instance.product).exclude(id=instance.id).update(is_main=False)
+            instance.save()
+        formset.save_m2m()
 
 
 class ProductVariantInline(admin.TabularInline):
@@ -50,7 +59,7 @@ class ProductAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Basic Info", {
-            'fields': ('name', 'slug', 'category', 'description')
+            'fields': ('name', 'slug', 'category', 'description', 'has_variants')
         }),
         ("Pricing & Availability", {
             'fields': ('base_price', 'discount_price', 'in_stock')
