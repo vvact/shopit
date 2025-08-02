@@ -32,4 +32,9 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
 
+   
+    def get_price(self):
+        return self.product.get_final_price()
+
+
 
