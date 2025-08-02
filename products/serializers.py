@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from django.db.models import Avg
+
+from reviews.serializers import ReviewSerializer
 from .models import (
     Category, Product, ProductImage, ProductVariant,
     Attribute, AttributeValue, ProductAttribute,
@@ -98,6 +101,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
+    reviews = ReviewSerializer(many=True, read_only=True, source='product_reviews')  # 👈 Optional
 
     class Meta:
         model = Product
@@ -108,16 +112,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'in_stock', 'is_available', 'is_featured',
             'created_at', 'updated_at',
             'images', 'has_variants', 'variants', 'attributes',
+            'average_rating', 'review_count', 'reviews',  # 👈 reviews optional
         ]
-    class Meta:
-        model = Product
-        fields = [..., 'average_rating', 'review_count']
 
     def get_average_rating(self, obj):
-        return obj.reviews.aggregate(avg=models.Avg('rating'))['avg'] or 0
+        return obj.product_reviews.aggregate(avg=Avg('rating'))['avg'] or 0
 
     def get_review_count(self, obj):
-        return obj.reviews.count()
+        return obj.product_reviews.count()
 
     def get_discount_amount(self, obj):
         return obj.get_discount_amount()
