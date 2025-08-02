@@ -3,6 +3,7 @@ from .models import Cart, CartItem
 from products.models import ProductVariant, Product
 from products.serializers import ProductListSerializer
 
+
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductListSerializer(read_only=True)
     product_id = serializers.PrimaryKeyRelatedField(
@@ -15,6 +16,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    total_price = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
@@ -25,8 +27,12 @@ class CartItemSerializer(serializers.ModelSerializer):
             'variant',
             'variant_id',
             'quantity',
+            'total_price',
         ]
-        read_only_fields = ['id', 'product', 'variant']
+        read_only_fields = ['id', 'product', 'variant', 'total_price']
+
+    def get_total_price(self, obj):
+        return obj.total_price
 
     def create(self, validated_data):
         cart = self.context['cart']
@@ -53,6 +59,8 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
+    total_price = serializers.SerializerMethodField()
+    total_items = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
@@ -62,5 +70,22 @@ class CartSerializer(serializers.ModelSerializer):
             'session_key',
             'created_at',
             'items',
+            'total_price',
+            'total_items',
         ]
-        read_only_fields = ['id', 'user', 'session_key', 'created_at', 'items']
+        read_only_fields = [
+            'id',
+            'user',
+            'session_key',
+            'created_at',
+            'items',
+            'total_price',
+            'total_items',
+        ]
+
+    def get_total_price(self, obj):
+        return f"{obj.total_price():.2f}"
+
+    def get_total_items(self, obj):
+        return obj.total_items()
+    

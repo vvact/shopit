@@ -55,6 +55,9 @@ class Product(models.Model):
 
     def get_final_price(self):
         return self.discount_price if self.discount_price else self.base_price
+    def get_final_price(self):
+        return self.discount_price if self.discount_price else self.base_price
+
 
     def get_discount_amount(self):
         return self.base_price - self.discount_price if self.discount_price else 0

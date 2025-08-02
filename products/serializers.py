@@ -4,6 +4,8 @@ from .models import (
     Attribute, AttributeValue, ProductAttribute,
     Color, Size
 )
+from products import models
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -94,6 +96,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
     has_variants = serializers.BooleanField(read_only=True)
 
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = [
@@ -104,6 +109,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
             'images', 'has_variants', 'variants', 'attributes',
         ]
+    class Meta:
+        model = Product
+        fields = [..., 'average_rating', 'review_count']
+
+    def get_average_rating(self, obj):
+        return obj.reviews.aggregate(avg=models.Avg('rating'))['avg'] or 0
+
+    def get_review_count(self, obj):
+        return obj.reviews.count()
 
     def get_discount_amount(self, obj):
         return obj.get_discount_amount()

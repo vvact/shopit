@@ -20,6 +20,12 @@ class Order(models.Model):
     def __str__(self):
         return f"Order #{self.id} - {self.status}"
 
+    def calculate_total_price(self):
+        total = sum(item.price * item.quantity for item in self.items.all())
+        self.total_price = total
+        self.save()
+
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
@@ -29,6 +35,16 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name}"
+
+    def save(self, *args, **kwargs):
+        # Use product price only (ignore variant price)
+        if hasattr(self.product, 'get_final_price'):
+            self.price = self.product.get_final_price()
+        else:
+            self.price = self.product.price
+
+        super().save(*args, **kwargs)
+        self.order.calculate_total_price()
 
 
 class ShippingAddress(models.Model):
