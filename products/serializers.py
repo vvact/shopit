@@ -1,5 +1,7 @@
+from numpy import generic
 from rest_framework import serializers
 from django.db.models import Avg
+from rest_framework import generics
 
 from reviews.serializers import ReviewSerializer
 from .models import (
@@ -12,9 +14,45 @@ from wishlist.utils import is_in_user_wishlist
 
 # --- Category ---
 class CategorySerializer(serializers.ModelSerializer):
+    children = serializers.SerializerMethodField()
+    level = serializers.SerializerMethodField()
+    product_count = serializers.SerializerMethodField()
+    breadcrumbs = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug']
+        fields = ['id', 'name', 'slug', 'children', 'level', 'product_count', 'breadcrumbs']
+
+    def get_children(self, obj):
+        children = obj.children.all()
+        return CategorySerializer(children, many=True, context=self.context).data
+    
+    def get_product_count(self, obj):
+        return Product.objects.filter(category=obj).count()
+    
+    def get_level(self, obj):
+        level = 0
+        parent = obj.parent
+        while parent:
+            level += 1
+            parent = parent.parent
+        return level
+    
+
+    def get_breadcrumbs(self, obj):
+        # Build the breadcrumb slug path like: /clothing/t-shirts/graphic-t-shirts
+        slugs = []
+        names = []
+        current = obj
+        while current:
+            slugs.insert(0, current.slug)
+            names.insert(0, current.name)
+            current = current.parent
+        return '/' + '/'.join(slugs), ' > '.join(names)
+
+class TopLevelCategoryListView(generics.ListAPIView):
+    queryset = Category.objects.filter(parent__isnull=True).order_by('name')
+    serializer_class = CategorySerializer
 
 
 # --- Images ---

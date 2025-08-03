@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .models import Category
 from .models import (
     Category,
     Product,
@@ -74,7 +75,31 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 # Register other models as-is
-admin.site.register(Category)
+# products/admin.py
+
+
+
+# products/admin.py
+
+# admin.py
+
+from django.contrib import admin
+from .models import Category
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ['indented_name', 'slug', 'parent', 'level']
+    list_filter = ['parent']
+    search_fields = ['name', 'slug']
+
+    def indented_name(self, obj):
+        return '— ' * obj.level + obj.name
+    indented_name.short_description = 'Category'
+
+    def level(self, obj):
+        return obj.level
+
+
 admin.site.register(ProductImage)
 admin.site.register(Attribute)
 admin.site.register(AttributeValue)
