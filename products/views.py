@@ -1,29 +1,42 @@
 # products/views.py
-from rest_framework import viewsets, filters
+
+from rest_framework import viewsets, filters, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q
+
+from .models import Product, Category
+from .serializers import (
+    ProductListSerializer,
+    ProductDetailSerializer,
+    CategorySerializer
+)
+from .filters import ProductFilter
 
 
-from .models import Product
-from .serializers import ProductListSerializer, ProductDetailSerializer
-from .filters import ProductFilter  # <- Import your custom filter
-
-
-from rest_framework import generics
-from .models import Category
-from .serializers import CategorySerializer
-
+# ---- Category Views ----
 class CategoryListView(generics.ListAPIView):
-    queryset = Category.objects.filter(parent__isnull=True).order_by('name')
     serializer_class = CategorySerializer
 
     def get_queryset(self):
         slug = self.request.query_params.get('slug')
+
         if slug:
             return Category.objects.filter(slug=slug)
-        return Category.objects.filter(parent__isnull=True).prefetch_related('children').order_by('name')
-    
+
+        return (
+            Category.objects
+            .filter(parent__isnull=True)
+            .annotate(
+                direct_products=Count('products', distinct=True),
+                child_products=Count('children__products', distinct=True)
+            )
+            .filter(Q(direct_products__gt=0) | Q(child_products__gt=0))
+            .prefetch_related('children')
+            .order_by('name')
+        )
+
 
 class CategoryDetailView(generics.RetrieveAPIView):
     queryset = Category.objects.all()
@@ -31,12 +44,7 @@ class CategoryDetailView(generics.RetrieveAPIView):
     lookup_field = 'slug'
 
 
-class TopLevelCategoryListView(generics.ListAPIView):
-    queryset = Category.objects.filter(parent__isnull=True).order_by('name')
-    serializer_class = CategorySerializer
-
-
-
+# ---- Product Views ----
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.prefetch_related(
@@ -47,6 +55,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_class = ProductFilter
     search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at']
 
     def get_serializer_class(self):
         if self.action == 'list':

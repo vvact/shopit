@@ -1,7 +1,5 @@
-from numpy import generic
 from rest_framework import serializers
 from django.db.models import Avg
-from rest_framework import generics
 
 from reviews.serializers import ReviewSerializer
 from .models import (
@@ -10,9 +8,8 @@ from .models import (
     Color, Size
 )
 from wishlist.utils import is_in_user_wishlist
+from django.db.models import Count
 
-
-# --- Category ---
 class CategorySerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
     level = serializers.SerializerMethodField()
@@ -24,12 +21,31 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'children', 'level', 'product_count', 'breadcrumbs']
 
     def get_children(self, obj):
-        children = obj.children.all()
-        return CategorySerializer(children, many=True, context=self.context).data
-    
+         # ✅ Only return children with product_count > 0
+        children = obj.children.annotate(
+            actual_product_count=Count("products")
+        ).filter(actual_product_count__gt=0)
+        return [
+            {
+                'id': child.id,
+                'name': child.name,
+                'slug': child.slug,
+                'product_count': child.actual_product_count,
+            }
+            for child in children
+        ]
+
     def get_product_count(self, obj):
-        return Product.objects.filter(category=obj).count()
-    
+        def collect_descendants(cat):
+            
+            descendants = list(cat.children.all())
+            for child in cat.children.all():
+                descendants.extend(collect_descendants(child))
+            return descendants
+
+        categories = [obj] + collect_descendants(obj)
+        return Product.objects.filter(category__in=categories).count()
+
     def get_level(self, obj):
         level = 0
         parent = obj.parent
@@ -37,10 +53,8 @@ class CategorySerializer(serializers.ModelSerializer):
             level += 1
             parent = parent.parent
         return level
-    
 
     def get_breadcrumbs(self, obj):
-        # Build the breadcrumb slug path like: /clothing/t-shirts/graphic-t-shirts
         slugs = []
         names = []
         current = obj
@@ -48,11 +62,47 @@ class CategorySerializer(serializers.ModelSerializer):
             slugs.insert(0, current.slug)
             names.insert(0, current.name)
             current = current.parent
-        return '/' + '/'.join(slugs), ' > '.join(names)
+        return {
+            "path": '/' + '/'.join(slugs),
+            "label": ' > '.join(names)
+        }
 
-class TopLevelCategoryListView(generics.ListAPIView):
-    queryset = Category.objects.filter(parent__isnull=True).order_by('name')
-    serializer_class = CategorySerializer
+
+
+# products/serializers.py
+
+class CategoryNestedSerializer(serializers.ModelSerializer):
+    level = serializers.SerializerMethodField()
+    parent_name = serializers.SerializerMethodField()
+    breadcrumbs = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'parent_name', 'level', 'breadcrumbs']
+
+    def get_level(self, obj):
+        level = 0
+        current = obj.parent
+        while current:
+            level += 1
+            current = current.parent
+        return level
+
+    def get_parent_name(self, obj):
+        return obj.parent.name if obj.parent else None
+
+    def get_breadcrumbs(self, obj):
+        slugs = []
+        names = []
+        current = obj
+        while current:
+            slugs.insert(0, current.slug)
+            names.insert(0, current.name)
+            current = current.parent
+        return {
+            "path": '/' + '/'.join(slugs),
+            "label": ' > '.join(names)
+        }
 
 
 # --- Images ---
@@ -133,9 +183,28 @@ class ProductListSerializer(serializers.ModelSerializer):
         return obj.get_final_price()
 
 
+class ProductCategorySerializer(serializers.ModelSerializer):
+    level = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'level',]
+
+
+
+    def get_level(self, obj):
+        level = 0
+        parent = obj.parent
+        while parent:
+            level += 1
+            parent = parent.parent
+        return level
+
+
+
 # --- Product Detail ---
 class ProductDetailSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
+    category = ProductCategorySerializer()
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
     attributes = serializers.SerializerMethodField()
@@ -149,6 +218,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     reviews = ReviewSerializer(many=True, read_only=True, source='product_reviews')
     is_in_wishlist = serializers.SerializerMethodField()
     variant_attributes = serializers.SerializerMethodField()
+    breadcrumbs = serializers.SerializerMethodField()
+    related_products = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Product
@@ -160,8 +232,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
             'images', 'has_variants', 'variants', 'attributes',
             'average_rating', 'review_count', 'reviews',
-            'is_in_wishlist', 'variant_attributes',
+            'is_in_wishlist', 'variant_attributes', 'breadcrumbs',
+            'related_products',
         ]
+
+    def get_related_products(self, obj):
+        related_qs = Product.objects.filter(
+            category=obj.category, is_available=True
+        ).exclude(id=obj.id)[:4]  # Limit to 4, exclude current
+        return ProductListSerializer(related_qs, many=True).data
 
     def get_variant_attributes(self, obj):
         color_names = sorted(
@@ -198,4 +277,18 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return {
             attr.attribute.name: attr.value.value
             for attr in obj.attributes.all()
+        }
+    
+
+    def get_breadcrumbs(self, obj):
+        slugs = []
+        names = []
+        current = obj.category  # Ensure this points to the category object
+        while current:
+            slugs.insert(0, current.slug)
+            names.insert(0, current.name)
+            current = current.parent
+        return {
+            "path": '/' + '/'.join(slugs),
+            "label": ' > '.join(names)
         }
