@@ -7,21 +7,24 @@ from .models import (
     Attribute, AttributeValue, ProductAttribute,
     Color, Size
 )
-from products import models
+from wishlist.utils import is_in_user_wishlist
 
 
+# --- Category ---
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug']
 
 
+# --- Images ---
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
         fields = ['id', 'image', 'alt_text', 'is_main', 'position']
 
 
+# --- Color & Size ---
 class ColorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Color
@@ -34,6 +37,7 @@ class SizeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+# --- Attribute & Values ---
 class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
@@ -57,6 +61,7 @@ class ProductAttributeSerializer(serializers.ModelSerializer):
         fields = ['attribute', 'value']
 
 
+# --- Variant ---
 class ProductVariantSerializer(serializers.ModelSerializer):
     color = ColorSerializer(read_only=True)
     size = SizeSerializer(read_only=True)
@@ -69,6 +74,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         ]
 
 
+# --- Product List ---
 class ProductListSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(slug_field='name', read_only=True)
     main_image = serializers.SerializerMethodField()
@@ -89,6 +95,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         return obj.get_final_price()
 
 
+# --- Product Detail ---
 class ProductDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
@@ -101,7 +108,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
-    reviews = ReviewSerializer(many=True, read_only=True, source='product_reviews')  # 👈 Optional
+    reviews = ReviewSerializer(many=True, read_only=True, source='product_reviews')
+    is_in_wishlist = serializers.SerializerMethodField()
+    variant_attributes = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -112,8 +121,25 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'in_stock', 'is_available', 'is_featured',
             'created_at', 'updated_at',
             'images', 'has_variants', 'variants', 'attributes',
-            'average_rating', 'review_count', 'reviews',  # 👈 reviews optional
+            'average_rating', 'review_count', 'reviews',
+            'is_in_wishlist', 'variant_attributes',
         ]
+
+    def get_variant_attributes(self, obj):
+        color_names = sorted(
+            obj.variants.values_list('color__name', flat=True).distinct()
+        )
+        size_names = sorted(
+            obj.variants.values_list('size__name', flat=True).distinct()
+        )
+        return {
+            "Color": list(color_names),
+            "Size": list(size_names)
+        }
+
+    def get_is_in_wishlist(self, obj):
+        request = self.context.get('request')
+        return is_in_user_wishlist(request, obj)
 
     def get_average_rating(self, obj):
         return obj.product_reviews.aggregate(avg=Avg('rating'))['avg'] or 0
