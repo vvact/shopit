@@ -52,7 +52,7 @@ class CategoryDetailView(generics.RetrieveAPIView):
 # ---- Product Views ----
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.prefetch_related(
+    queryset = Product.objects.filter(in_stock=True).prefetch_related(
         'images', 'variants', 'attributes__attribute', 'attributes__value'
     ).select_related('category')
     lookup_field = 'slug'
@@ -71,7 +71,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     def related(self, request, slug=None):
         product = self.get_object()
         related_products = Product.objects.filter(
-            category=product.category
+            category=product.category,
+            in_stock=True
         ).exclude(id=product.id)[:4]
         serializer = ProductListSerializer(
             related_products, many=True, context={'request': request}
@@ -81,10 +82,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 
+
 class FlashDealViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = FlashDealSerializer
 
     def get_queryset(self):
+        
         now = timezone.now()
         return FlashDeal.objects.filter(
             is_active=True,

@@ -151,15 +151,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 # --- Product List ---
 class ProductListSerializer(serializers.ModelSerializer):
     category = CategoryNestedSerializer(read_only=True)
-
+    in_stock = serializers.SerializerMethodField()
     main_image = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
-
+    stock_status = serializers.SerializerMethodField()
+    original_price = serializers.DecimalField(source='base_price', max_digits=10, decimal_places=2, read_only=True)
+    discounted_price = serializers.SerializerMethodField()
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'category',
-            'price', 'main_image', 'is_featured',
+            'price', 'main_image', 'is_featured', 'in_stock', 'stock_status',
+            'original_price', 'discounted_price',
         ]
     def get_main_image(self, obj):
         request = self.context.get('request', None)
@@ -171,6 +174,15 @@ class ProductListSerializer(serializers.ModelSerializer):
         return None
 
     def get_price(self, obj):
+        return obj.get_final_price()
+
+    def get_in_stock(self, obj):
+        return obj.in_stock
+
+    def get_stock_status(self, obj):
+        return "In Stock" if obj.in_stock else "Out of Stock"
+    
+    def get_discounted_price(self, obj):
         return obj.get_final_price()
 
 
