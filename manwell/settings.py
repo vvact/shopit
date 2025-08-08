@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +30,9 @@ INSTALLED_APPS = [
     # 'django.contrib.sites',
     'django_filters',
     'ckeditor',
+    
+    'corsheaders',
+    
 
     'rest_framework',
     'rest_framework.authtoken',
@@ -45,6 +49,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -168,3 +173,40 @@ REST_FRAMEWORK = {
     }
 }
 
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000", 
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# settings.py
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+FRONTEND_URL = "http://localhost:3000"  
+
+
+
+# settings.py
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'vbm7752@gmail.com'
+EMAIL_HOST_PASSWORD = 'pgyaczcejwevfauj'  # Generated from https://myaccount.google.com/apppasswords
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+FRONTEND_URL = 'http://localhost:3000'  # Change to your real frontend URL in production
+
+
+
+
+CELERY_BEAT_SCHEDULE = {
+    'deactivate-expired-flash-deals': {
+        'task': 'products.tasks.deactivate_expired_flash_deals',
+        'schedule': crontab(minute=0, hour='*/1'),  # every hour
+    },
+}

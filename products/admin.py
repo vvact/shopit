@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category
+from .models import Category, FlashDeal
 from .models import (
     Category,
     Product,
@@ -52,8 +52,8 @@ def mark_out_of_stock(modeladmin, request, queryset):
 # Product Admin
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'base_price', 'in_stock', 'created_at', 'updated_at')
-    list_filter = ('category', 'in_stock', 'created_at')
+    list_display = ('name', 'category', 'base_price', 'in_stock', 'is_featured', 'created_at', 'updated_at')
+    list_filter = ('category', 'in_stock', 'is_featured', 'created_at')
     search_fields = ('name', 'description', 'category__name')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('created_at', 'updated_at')
@@ -65,7 +65,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('name', 'slug', 'category', 'description')
         }),
         ("Pricing & Availability", {
-            'fields': ('base_price', 'discount_price', 'in_stock')
+            'fields': ('base_price', 'discount_price', 'in_stock', 'is_featured')
         }),
         ("Timestamps", {
             'fields': ('created_at', 'updated_at'),
@@ -74,8 +74,17 @@ class ProductAdmin(admin.ModelAdmin):
     )
 
 
-# Register other models as-is
-# products/admin.py
+
+class ProductInline(admin.TabularInline):
+    model = FlashDeal
+    extra = 1
+
+@admin.register(FlashDeal)
+class FlashDealAdmin(admin.ModelAdmin):
+    list_display = ('title', 'product', 'start_time', 'end_time', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('title',)
+
 
 
 

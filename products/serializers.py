@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Avg
-
+from products.utils import build_breadcrumbs
 from reviews.serializers import ReviewSerializer
 from .models import (
     Category, Product, ProductImage, ProductVariant,
@@ -9,6 +9,13 @@ from .models import (
 )
 from wishlist.utils import is_in_user_wishlist
 from django.db.models import Count
+from utils.breadcrumbs import build_breadcrumb_schema
+from utils.schema import build_product_schema
+from rest_framework.reverse import reverse
+from django.conf import settings
+
+from rest_framework import serializers
+from .models import FlashDeal
 
 class CategorySerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
@@ -55,17 +62,7 @@ class CategorySerializer(serializers.ModelSerializer):
         return level
 
     def get_breadcrumbs(self, obj):
-        slugs = []
-        names = []
-        current = obj
-        while current:
-            slugs.insert(0, current.slug)
-            names.insert(0, current.name)
-            current = current.parent
-        return {
-            "path": '/' + '/'.join(slugs),
-            "label": ' > '.join(names)
-        }
+        return build_breadcrumbs(obj)
 
 
 
@@ -92,18 +89,7 @@ class CategoryNestedSerializer(serializers.ModelSerializer):
         return obj.parent.name if obj.parent else None
 
     def get_breadcrumbs(self, obj):
-        slugs = []
-        names = []
-        current = obj
-        while current:
-            slugs.insert(0, current.slug)
-            names.insert(0, current.name)
-            current = current.parent
-        return {
-            "path": '/' + '/'.join(slugs),
-            "label": ' > '.join(names)
-        }
-
+        return build_breadcrumbs(obj)
 
 # --- Images ---
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -164,7 +150,8 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 # --- Product List ---
 class ProductListSerializer(serializers.ModelSerializer):
-    category = serializers.SlugRelatedField(slug_field='name', read_only=True)
+    category = CategoryNestedSerializer(read_only=True)
+
     main_image = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
 
@@ -174,10 +161,14 @@ class ProductListSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'category',
             'price', 'main_image', 'is_featured',
         ]
-
     def get_main_image(self, obj):
+        request = self.context.get('request', None)
         image = obj.images.filter(is_main=True).first()
-        return image.image.url if image else None
+        if image and image.image:
+            if request:
+                return request.build_absolute_uri(image.image.url)
+            return image.image.url  # Fallback to relative URL
+        return None
 
     def get_price(self, obj):
         return obj.get_final_price()
@@ -220,6 +211,8 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     variant_attributes = serializers.SerializerMethodField()
     breadcrumbs = serializers.SerializerMethodField()
     related_products = serializers.SerializerMethodField()
+    breadcrumb_schema = serializers.SerializerMethodField()
+    product_schema = serializers.SerializerMethodField()
 
 
     class Meta:
@@ -233,7 +226,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'images', 'has_variants', 'variants', 'attributes',
             'average_rating', 'review_count', 'reviews',
             'is_in_wishlist', 'variant_attributes', 'breadcrumbs',
-            'related_products',
+            'related_products', 'breadcrumb_schema', 'product_schema',
         ]
 
     def get_related_products(self, obj):
@@ -274,6 +267,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return obj.get_final_price()
 
     def get_attributes(self, obj):
+        
         return {
             attr.attribute.name: attr.value.value
             for attr in obj.attributes.all()
@@ -281,14 +275,57 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     
 
     def get_breadcrumbs(self, obj):
-        slugs = []
-        names = []
-        current = obj.category  # Ensure this points to the category object
-        while current:
-            slugs.insert(0, current.slug)
-            names.insert(0, current.name)
-            current = current.parent
-        return {
-            "path": '/' + '/'.join(slugs),
-            "label": ' > '.join(names)
-        }
+        return build_breadcrumbs(obj.category, product_slug=obj.slug, product_name=obj.name)
+    
+    def get_breadcrumb_schema(self, obj):
+        request = self.context.get('request')
+        breadcrumbs = build_breadcrumbs(obj.category, product_slug=obj.slug, product_name=obj.name)
+        return build_breadcrumb_schema(breadcrumbs, request)
+    
+    def get_product_schema(self, obj):
+        request = self.context.get('request')
+        return build_product_schema(obj, request)
+
+
+
+# flash deals serializers
+# products/serializers.py
+
+
+class FlashDealSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    original_price = serializers.DecimalField(
+        source='product.base_price',
+        read_only=True,
+        max_digits=10,
+        decimal_places=2
+    )
+    discount_price = serializers.SerializerMethodField()
+    final_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FlashDeal
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'original_price',
+            'discount_percentage',
+            'discount_price',
+            'final_price',
+            'start_time',
+            'end_time',
+            'is_active',
+        ]
+
+    def get_discount_price(self, obj):
+        """Calculate price after applying the discount percentage."""
+        original_price = obj.product.base_price
+        if obj.discount_percentage:
+            discount_amount = (original_price * obj.discount_percentage) / 100
+            return round(original_price - discount_amount, 2)
+        return original_price
+
+    def get_final_price(self, obj):
+        """For now, final price equals the discount price."""
+        return self.get_discount_price(obj)

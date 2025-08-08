@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.text import slugify
 from mptt.models import MPTTModel, TreeForeignKey
+from pytz import timezone
 
 
 
@@ -98,6 +99,11 @@ class Product(models.Model):
     @property
     def has_variants(self):
         return self.variants.exists()
+    
+    @property
+    def price(self):
+        return self.discount_price or self.base_price
+
 
 
 class ProductImage(models.Model):
@@ -179,3 +185,24 @@ class ProductAttribute(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.attribute.name}: {self.value.value}"
+
+
+
+# flash deals model
+class FlashDeal(models.Model):
+    title = models.CharField(max_length=255)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='flash_deals')
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    is_active = models.BooleanField(default=True)  # manual toggle
+
+    class Meta:
+        ordering = ['-start_time']
+
+    def is_currently_active(self):
+        now = timezone.now()
+        return self.is_active and self.start_time <= now <= self.end_time
+
+    def __str__(self):
+        return f"Flash Deal for {self.product.name} - {self.discount_percentage}% off"

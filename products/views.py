@@ -5,6 +5,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
+# products/views.py
+from rest_framework import viewsets
+from django.utils import timezone
+from .models import FlashDeal
+from .serializers import FlashDealSerializer
 
 from .models import Product, Category
 from .serializers import (
@@ -72,3 +77,17 @@ class ProductViewSet(viewsets.ModelViewSet):
             related_products, many=True, context={'request': request}
         )
         return Response(serializer.data)
+
+
+
+
+class FlashDealViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = FlashDealSerializer
+
+    def get_queryset(self):
+        now = timezone.now()
+        return FlashDeal.objects.filter(
+            is_active=True,
+            start_time__lte=now,
+            end_time__gte=now
+        )
